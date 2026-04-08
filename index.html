@@ -810,6 +810,83 @@ body {
   flex-wrap: wrap;
 }
 
+/* ─── Submit Button ──────────────────────────────────────────── */
+.btn-submit {
+  background: linear-gradient(135deg, var(--accent), #d63851);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(233, 69, 96, 0.3);
+}
+
+.btn-submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(233, 69, 96, 0.4);
+}
+
+.btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.btn-submit.submitted {
+  background: var(--success);
+  box-shadow: 0 4px 16px rgba(40, 167, 69, 0.3);
+  cursor: default;
+}
+
+/* ─── Respondent Info ────────────────────────────────────────── */
+.respondent-info {
+  text-align: left;
+  max-width: 480px;
+  margin: 0 auto 32px;
+}
+
+.respondent-info-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.respondent-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.respondent-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light);
+  margin-bottom: 4px;
+}
+
+.respondent-field input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg);
+  transition: var(--transition);
+}
+
+.respondent-field input:focus {
+  outline: none;
+  border-color: var(--secondary);
+  background: var(--bg-white);
+  box-shadow: 0 0 0 3px rgba(15, 52, 96, 0.08);
+}
+
+.respondent-field input::placeholder {
+  color: var(--text-muted);
+}
+
 /* ─── Footer ─────────────────────────────────────────────────── */
 .footer {
   text-align: center;
@@ -997,6 +1074,24 @@ body {
         </div>
       </div>
 
+      <div class="respondent-info">
+        <p class="respondent-info-label">Your Details <span style="font-weight:400; color: var(--text-muted);">(optional)</span></p>
+        <div class="respondent-fields">
+          <div class="respondent-field">
+            <label for="respondentName">Name</label>
+            <input type="text" id="respondentName" placeholder="e.g. Jane Smith" autocomplete="name">
+          </div>
+          <div class="respondent-field">
+            <label for="respondentEmail">Email</label>
+            <input type="email" id="respondentEmail" placeholder="e.g. jane@company.com" autocomplete="email">
+          </div>
+          <div class="respondent-field">
+            <label for="respondentOrg">Organisation</label>
+            <input type="text" id="respondentOrg" placeholder="e.g. Acme Corp" autocomplete="organization">
+          </div>
+        </div>
+      </div>
+
       <button class="btn btn-primary" onclick="startAssessment()">
         Begin Assessment <span class="arrow">→</span>
       </button>
@@ -1048,10 +1143,14 @@ body {
       <button class="btn btn-primary" onclick="window.print()">
         📄 Download as PDF
       </button>
+      <button class="btn btn-submit" id="submitBtn" onclick="submitResults()" style="display:none;">
+        🚀 Submit Results to Axiotic
+      </button>
       <button class="btn btn-secondary" onclick="restartAssessment()">
         ↻ Retake Assessment
       </button>
     </div>
+    <div id="submitMsg" style="display:none; text-align:center; margin-bottom:24px; padding:16px 24px; border-radius:var(--radius-sm); font-size:14px; font-weight:500;"></div>
 
     <div class="cta-section">
       <h3>Ready to Accelerate Your AI Journey?</h3>
@@ -1073,6 +1172,9 @@ body {
 /* ═══════════════════════════════════════════════════════════════
    TALOS Assessment Engine
    ═══════════════════════════════════════════════════════════════ */
+
+/* ── Backend URL ── Set this to your deployment URL to enable submission ── */
+const SUBMIT_URL = '';
 
 const DATA = {
   categories: [
@@ -1492,6 +1594,14 @@ function restartAssessment() {
   document.querySelectorAll('.question-card.answered').forEach(el => el.classList.remove('answered'));
   document.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
 
+  // Reset submit button
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = false;
+  submitBtn.textContent = '\ud83d\ude80 Submit Results to Axiotic';
+  submitBtn.classList.remove('submitted');
+  submitBtn.style.display = 'none';
+  document.getElementById('submitMsg').style.display = 'none';
+
   showStep();
 }
 
@@ -1557,6 +1667,16 @@ function selectLevel(qKey, levelIdx) {
 
 /* ── Results Rendering ─────────────────────────── */
 function renderResults() {
+  // Show/hide submit button based on SUBMIT_URL
+  const submitBtn = document.getElementById('submitBtn');
+  const submitMsg = document.getElementById('submitMsg');
+  if (SUBMIT_URL) {
+    submitBtn.style.display = 'inline-flex';
+  } else {
+    submitBtn.style.display = 'none';
+  }
+  submitMsg.style.display = 'none';
+
   const catScores = [];
 
   DATA.categories.forEach((cat, catIdx) => {
@@ -1705,6 +1825,71 @@ function animateGauge(targetPct) {
   }
 
   requestAnimationFrame(step);
+}
+
+/* ── Submit Results ───────────────────────────── */
+async function submitResults() {
+  const btn = document.getElementById('submitBtn');
+  const msgEl = document.getElementById('submitMsg');
+
+  if (!SUBMIT_URL || btn.disabled) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Submitting...';
+  msgEl.style.display = 'none';
+
+  // Compute category scores
+  const categoryScores = {};
+  DATA.categories.forEach((cat, catIdx) => {
+    let sum = 0;
+    cat.questions.forEach((q, qIdx) => {
+      sum += (answers[`${catIdx}-${qIdx}`] || 0);
+    });
+    const maxScore = cat.questions.length * 3;
+    categoryScores[cat.name] = parseFloat(((sum / maxScore) * 100).toFixed(1));
+  });
+
+  const overallScore = parseFloat(
+    (Object.values(categoryScores).reduce((a, b) => a + b, 0) / Object.values(categoryScores).length).toFixed(1)
+  );
+
+  const payload = {
+    respondent_name: document.getElementById('respondentName').value.trim(),
+    respondent_email: document.getElementById('respondentEmail').value.trim(),
+    organisation: document.getElementById('respondentOrg').value.trim(),
+    submitted_at: new Date().toISOString(),
+    overall_score: overallScore,
+    category_scores: categoryScores,
+    answers: { ...answers }
+  };
+
+  try {
+    const res = await fetch(SUBMIT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      btn.textContent = '✅ Submitted';
+      btn.classList.add('submitted');
+      msgEl.style.display = 'block';
+      msgEl.style.background = '#d4edda';
+      msgEl.style.color = '#155724';
+      msgEl.style.border = '1px solid #c3e6cb';
+      msgEl.textContent = 'Your results have been submitted successfully! The Axiotic team will review your assessment.';
+    } else {
+      throw new Error(`Server responded with ${res.status}`);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = '🚀 Submit Results to Axiotic';
+    msgEl.style.display = 'block';
+    msgEl.style.background = '#f8d7da';
+    msgEl.style.color = '#721c24';
+    msgEl.style.border = '1px solid #f5c6cb';
+    msgEl.textContent = 'Submission failed — please try again or contact the Axiotic team directly.';
+  }
 }
 
 /* ── Init ──────────────────────────────────────── */
