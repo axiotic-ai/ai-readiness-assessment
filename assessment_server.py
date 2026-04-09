@@ -8,7 +8,9 @@ Usage:
     python assessment_server.py
 
 Endpoints:
-    POST /api/submit          — Submit assessment results
+    GET  /                     — Assessment UI
+    GET  /health               — Service metadata / health check
+    POST /api/submit           — Submit assessment results
     GET  /api/submissions      — List all submissions (JSON)
     GET  /api/submissions/csv  — Download all submissions as CSV
     GET  /admin                — Admin dashboard
@@ -22,11 +24,20 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, Response, g, jsonify, render_template_string, request
+from flask import (
+    Flask,
+    Response,
+    g,
+    jsonify,
+    render_template_string,
+    request,
+    send_from_directory,
+)
 from flask_cors import CORS
 
 # ── Configuration ────────────────────────────────────────────────
-DB_PATH = Path(__file__).parent / "submissions.db"
+BASE_DIR = Path(__file__).parent
+DB_PATH = BASE_DIR / "submissions.db"
 PORT = int(os.environ.get("TALOS_PORT", 5050))
 
 app = Flask(__name__)
@@ -497,12 +508,19 @@ def admin():
 
 
 @app.route("/")
-def index():
+def assessment_ui():
+    return send_from_directory(str(BASE_DIR), "index.html")
+
+
+@app.route("/health")
+def health():
     return jsonify(
         {
             "service": "TALOS Assessment Backend",
             "version": "1.0.0",
             "endpoints": {
+                "GET /": "Assessment UI",
+                "GET /health": "Service metadata / health check",
                 "POST /api/submit": "Submit assessment results",
                 "GET /api/submissions": "List all submissions (JSON)",
                 "GET /api/submissions/csv": "Download submissions as CSV",
